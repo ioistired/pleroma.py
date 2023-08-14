@@ -11,7 +11,7 @@ from http import HTTPStatus
 from datetime import datetime, timezone
 from dateutil.parser import parse as parsedate
 
-__version__ = '0.0.2'
+__version__ = '0.0.3'
 
 class BadRequest(Exception):
 	pass
