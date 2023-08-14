@@ -242,3 +242,11 @@ class Pleroma:
 		async for notif in self.stream_notifications():
 			if notif['type'] == 'mention':
 				yield notif
+
+	async def stream_local_timeline(self):
+		async for notif in self.stream('public:local'):
+			yield notif
+
+	async def stream_federated_timeline(self):
+		async for notif in self.stream('public'):
+			yield notif
