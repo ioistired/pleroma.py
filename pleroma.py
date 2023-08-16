@@ -99,6 +99,12 @@ class File:
 		else:
 			self.thumbnail = thumbnail
 
+	def __repr__(self):
+		out = [f'<{type(self).__qualname__}']
+		for field in 'fp filename mime_type description focus thumbnail'.split():
+			out.append(f'{field}={getattr(self, field)!r}')
+		return ' '.join(out) + '>'
+
 class Pleroma:
 	def __init__(self, *, api_base_url, access_token):
 		self.api_base_url = api_base_url.rstrip('/')
