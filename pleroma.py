@@ -12,7 +12,7 @@ from pathlib import Path, PurePath
 from datetime import datetime, timezone
 from dateutil.parser import parse as parsedate
 
-__version__ = '0.0.5'
+__version__ = '0.0.6'
 
 class BadRequest(Exception):
 	pass
