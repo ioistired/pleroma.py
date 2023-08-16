@@ -232,7 +232,7 @@ class Pleroma:
 					tg.start_soon(upload, i, file)
 
 			assert None not in files_uploaded
-			data['media_ids[]'] = files_uploaded
+			data['media_ids'] = files_uploaded
 
 		return await self.request('POST', '/api/v1/statuses', json=data)
 
