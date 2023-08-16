@@ -8,6 +8,7 @@ import hashlib
 import aiohttp
 import contextlib
 from http import HTTPStatus
+from pathlib import Path, PurePath
 from datetime import datetime, timezone
 from dateutil.parser import parse as parsedate
 
@@ -66,6 +67,38 @@ def _http_session_factory(headers={}, **kwargs):
 		**kwargs,
 	)
 
+class File:
+	def __init__(
+		self,
+		fp,
+		filename=None,
+		mime_type=None,
+		*,
+		description=None,
+		focus=None,
+		thumbnail=None,
+		thumbnail_mime_type=None,
+	):
+		if filename is None and isinstance(fp, str):
+			self.filename = PurePath(fp).name
+		try:
+			self.fp = open(fp, 'rb')
+		except TypeError:
+			# probably already a file-like
+			self.fp = fp
+			self.filename = PurePath(fp.name).name
+		else:
+			self.filename = PurePath(self.fp.name).name
+
+		self.mime_type = mime_type
+		self.description = description
+		self.focus = focus
+
+		if thumbnail is not None:
+			self.thumbnail = type(self)(thumbnail, mime_type=thumbnail_mime_type)
+		else:
+			self.thumbnail = thumbnail
+
 class Pleroma:
 	def __init__(self, *, api_base_url, access_token):
 		self.api_base_url = api_base_url.rstrip('/')
@@ -97,7 +130,7 @@ class Pleroma:
 			if resp.status == HTTPStatus.BAD_REQUEST:
 				raise BadRequest((await resp.json())['error'])
 			if resp.status == HTTPStatus.INTERNAL_SERVER_ERROR:
-			    raise BadResponse((await resp.json()))
+			    raise BadResponse(await resp.json())
 			#resp.raise_for_status()
 			return await resp.json()
 
@@ -133,7 +166,39 @@ class Pleroma:
 		id = self._unpack_id(id)
 		return await self.request('GET', f'/api/v1/statuses/{id}/context')
 
-	async def post(self, content, *, in_reply_to_id=None, cw=None, visibility=None):
+	async def media(self, id):
+		id = self._unpack_id(id)
+		return await self.request('GET', f'/api/v1/media/{id}')
+
+	async def upload(self, file):
+		data = aiohttp.FormData()
+		data.add_field('file', file.fp, filename=file.filename, content_type=file.mime_type)
+		focus = None
+		if file.focus is not None:
+			if len(file.focus) != 2:
+				raise ValueError('focus must be a sequence of 2 floats')
+			focus = ','.join(file.focus)
+		if file.thumbnail is not None:
+			data.add_field(
+				'thumbnail',
+				file.thumbnail.fp,
+				filename=file.thumbnail.filename,
+				content_type=file.thumbnail.mime_type,
+			)
+
+		params = {}
+		if focus:
+			params['focus'] = focus
+		if file.description is not None:
+			params['description'] = file.description
+
+		return await self.request(
+			'POST', '/api/v1/media',
+			data=data,
+			params=params,
+		)
+
+	async def post(self, content, *, in_reply_to_id=None, cw=None, visibility=None, files=None):
 		if visibility not in {None, 'private', 'public', 'unlisted', 'direct'}:
 			raise ValueError('invalid visibility', visibility)
 
@@ -148,9 +213,21 @@ class Pleroma:
 		if cw:
 			data['spoiler_text'] = cw
 
+		if files:
+			files_uploaded = [None] * len(files)
+			async with anyio.create_task_group() as tg:
+				async def upload(i, file):
+					files_uploaded[i] = (await self.upload(file))['id']
+
+				for i, file in enumerate(files):
+					tg.start_soon(upload, i, file)
+
+			assert None not in files_uploaded
+			data['media_ids[]'] = files_uploaded
+
 		return await self.request('POST', '/api/v1/statuses', data=data)
 
-	async def reply(self, to_status, content, *, cw=None):
+	async def reply(self, to_status, content, *, cw=None, files=None):
 		user_id = await self._get_logged_in_id()
 
 		mentioned_accounts = {}
@@ -165,7 +242,13 @@ class Pleroma:
 		if not cw and 'spoiler_text' in to_status and to_status['spoiler_text']:
 			cw = 're: ' + to_status['spoiler_text']
 
-		return await self.post(content, in_reply_to_id=to_status['id'], cw=cw, visibility=visibility)
+		return await self.post(
+			content,
+			in_reply_to_id=to_status['id'],
+			cw=cw,
+			visibility=visibility,
+			files=files,
+		)
 
 	async def delete_status(self, id):
 		id = self._unpack_id(id)
