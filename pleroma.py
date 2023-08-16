@@ -198,11 +198,20 @@ class Pleroma:
 			params=params,
 		)
 
-	async def post(self, content, *, in_reply_to_id=None, cw=None, visibility=None, files=None):
+	async def post(
+		self,
+		content,
+		*,
+		content_type='text/plain',
+		in_reply_to_id=None,
+		cw=None,
+		visibility=None,
+		files=None,
+	):
 		if visibility not in {None, 'private', 'public', 'unlisted', 'direct'}:
 			raise ValueError('invalid visibility', visibility)
 
-		data = dict(status=content)
+		data = dict(status=content, content_type=content_type)
 		if in_reply_to_id := self._unpack_id(in_reply_to_id):
 			data['in_reply_to_id'] = in_reply_to_id
 		if visibility is not None:
@@ -225,9 +234,9 @@ class Pleroma:
 			assert None not in files_uploaded
 			data['media_ids[]'] = files_uploaded
 
-		return await self.request('POST', '/api/v1/statuses', data=data)
+		return await self.request('POST', '/api/v1/statuses', json=data)
 
-	async def reply(self, to_status, content, *, cw=None, files=None):
+	async def reply(self, to_status, content, *, cw=None, files=None, content_type=None):
 		user_id = await self._get_logged_in_id()
 
 		mentioned_accounts = {}
@@ -248,6 +257,7 @@ class Pleroma:
 			cw=cw,
 			visibility=visibility,
 			files=files,
+			content_type=content_type,
 		)
 
 	async def delete_status(self, id):
