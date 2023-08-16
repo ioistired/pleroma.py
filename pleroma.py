@@ -71,9 +71,9 @@ class File:
 	def __init__(
 		self,
 		fp,
+		*,
 		filename=None,
 		mime_type=None,
-		*,
 		description=None,
 		focus=None,
 		thumbnail=None,
