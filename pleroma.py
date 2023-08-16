@@ -266,6 +266,9 @@ class Pleroma:
 			content_type=content_type,
 		)
 
+	async def status(self, id):
+		return await self.request('GET', f'/api/v1/statuses/{id}')
+
 	async def delete_status(self, id):
 		id = self._unpack_id(id)
 		return await self.request('DELETE', f'/api/v1/statuses/{id}')
